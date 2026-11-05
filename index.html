@@ -1145,6 +1145,7 @@ ACT['logout']=async()=>{
   leaveApp();showAuth('login','Você saiu da conta. Até logo! 💖','ok');
 };
 ACT['auth-forgot']=()=>showAuth('forgot');
+ACT['auth-first']=()=>showAuth('first');
 ACT['auth-login']=()=>showAuth('login');
 ACT['open-menu']=()=>{$('#sidebar').classList.add('open');$('#scrim').classList.add('show');};
 ACT['close-menu']=()=>{$('#sidebar').classList.remove('open');$('#scrim').classList.remove('show');};
@@ -1307,8 +1308,8 @@ function showAuth(mode,msg,tone){
   const m=msg?'<p class="'+(tone==='ok'?'auth-ok':'err')+'" role="alert">'+esc(msg)+'</p>':'<p class="err" role="alert"></p>';
   const logo='<span class="script">Bibia 💖</span>';
   let body='';
-  if(mode==='login')body=logo+'<p class="sub">Entre para ver o seu dinheirinho</p><form data-form="login" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+field('Senha','<input type="password" name="password" autocomplete="current-password">')+m+'<button class="btn primary block" type="submit">Entrar</button><button type="button" class="btn ghost block" data-act="auth-forgot">Esqueci minha senha</button></form>';
-  else if(mode==='forgot')body=logo+'<p class="sub">Vamos mandar um link para criar uma nova senha</p><form data-form="forgot" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+m+'<button class="btn primary block" type="submit">Enviar link por e-mail</button><button type="button" class="btn ghost block" data-act="auth-login">Voltar</button></form>';
+  if(mode==='login')body=logo+'<p class="sub">Entre para ver o seu dinheirinho</p><form data-form="login" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+field('Senha','<input type="password" name="password" autocomplete="current-password">')+m+'<button class="btn primary block" type="submit">Entrar</button><button type="button" class="btn block" data-act="auth-first">Primeiro acesso</button><button type="button" class="btn ghost block" data-act="auth-forgot">Esqueci minha senha</button></form>';
+  else if(mode==='forgot'||mode==='first')body=logo+'<p class="sub">'+(mode==='first'?'Primeiro acesso? Digite o seu e-mail e enviaremos um link para você criar a sua senha.':'Vamos mandar um link para criar uma nova senha.')+'</p><form data-form="forgot" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+m+'<button class="btn primary block" type="submit">'+(mode==='first'?'Enviar link para criar minha senha':'Enviar link por e-mail')+'</button><button type="button" class="btn ghost block" data-act="auth-login">Voltar</button></form>';
   else if(mode==='setpw')body=logo+'<h1>Crie a sua senha</h1><p class="sub">Escolha uma senha com pelo menos 8 caracteres</p><form data-form="setpw" novalidate>'+field('Nova senha','<input type="password" name="password" autocomplete="new-password">')+field('Repita a senha','<input type="password" name="password2" autocomplete="new-password">')+m+'<button class="btn primary block" type="submit">Salvar e entrar</button></form>';
   else body=logo+'<p class="sub">'+esc(msg||'Carregando…')+'</p>';
   a.innerHTML='<div class="auth-card">'+body+'</div>';
@@ -1367,7 +1368,7 @@ FORMS.forgot=async function(form){
   const r=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
   btn.disabled=false;
   if(r.error)return showErr(form,authError(r.error));
-  showAuth('login','Pronto! Se o e-mail estiver cadastrado, o link chega em instantes. Olhe também o spam.','ok');
+  showAuth('login','Pronto! Se o e-mail estiver liberado, o link chega em instantes. Olhe também o spam.','ok');
 };
 FORMS.setpw=async function(form){
   const fd=new FormData(form),p1=fd.get('password')||'',p2=fd.get('password2')||'';
