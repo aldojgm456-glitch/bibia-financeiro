@@ -1309,7 +1309,7 @@ function showAuth(mode,msg,tone){
   const logo='<span class="script">Bibia 💖</span>';
   let body='';
   if(mode==='login')body=logo+'<p class="sub">Entre para ver o seu dinheirinho</p><form data-form="login" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+field('Senha','<input type="password" name="password" autocomplete="current-password">')+m+'<button class="btn primary block" type="submit">Entrar</button><button type="button" class="btn block" data-act="auth-first">Primeiro acesso</button><button type="button" class="btn ghost block" data-act="auth-forgot">Esqueci minha senha</button></form>';
-  else if(mode==='forgot'||mode==='first')body=logo+'<p class="sub">'+(mode==='first'?'Primeiro acesso? Digite o seu e-mail e enviaremos um link para você criar a sua senha.':'Vamos mandar um link para criar uma nova senha.')+'</p><form data-form="forgot" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+m+'<button class="btn primary block" type="submit">'+(mode==='first'?'Enviar link para criar minha senha':'Enviar link por e-mail')+'</button><button type="button" class="btn ghost block" data-act="auth-login">Voltar</button></form>';
+  else if(mode==='forgot'||mode==='first')body=logo+'<p class="sub">'+(mode==='first'?'Primeiro acesso? Digite o seu e-mail e enviaremos um link para você criar a sua senha.':'Vamos mandar um link para criar uma nova senha.')+'</p><form data-form="'+(mode==='first'?'first':'forgot')+'" novalidate>'+field('E-mail','<input type="email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off">')+m+'<button class="btn primary block" type="submit">'+(mode==='first'?'Enviar link para criar minha senha':'Enviar link por e-mail')+'</button><button type="button" class="btn ghost block" data-act="auth-login">Voltar</button></form>';
   else if(mode==='setpw')body=logo+'<h1>Crie a sua senha</h1><p class="sub">Escolha uma senha com pelo menos 8 caracteres</p><form data-form="setpw" novalidate>'+field('Nova senha','<input type="password" name="password" autocomplete="new-password">')+field('Repita a senha','<input type="password" name="password2" autocomplete="new-password">')+m+'<button class="btn primary block" type="submit">Salvar e entrar</button></form>';
   else body=logo+'<p class="sub">'+esc(msg||'Carregando…')+'</p>';
   a.innerHTML='<div class="auth-card">'+body+'</div>';
@@ -1317,6 +1317,7 @@ function showAuth(mode,msg,tone){
 }
 function authError(e){
   const m=String((e&&e.message)||e||'').toLowerCase();
+  if(m.includes('database error')||m.includes('not allowed')||m.includes('signups not allowed'))return 'Este e-mail ainda não foi liberado para o app.';
   if(m.includes('invalid login'))return 'E-mail ou senha incorretos.';
   if(m.includes('not confirmed'))return 'Este e-mail ainda não foi confirmado.';
   if(m.includes('fetch')||m.includes('network'))return 'Sem conexão com a internet. Tente de novo.';
@@ -1343,10 +1344,20 @@ async function startApp(user){
   route();
   await cloudPull();
 }
+/* entrou pelo link do e-mail (sem senha) e ainda não criou a senha → pede para criar */
+function needsPassword(session){
+  try{
+    const u=session.user;if(u.user_metadata&&u.user_metadata.has_pw)return false;
+    const b=session.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const amr=(JSON.parse(atob(b)).amr||[]);
+    return amr.length>0&&amr[0].method==='otp';
+  }catch(e){return false;}
+}
 function onSession(event,session){
   if(event==='PASSWORD_RECOVERY')pendingSetPw=true;
   if(event==='SIGNED_OUT'){if(appStarted){leaveApp();showAuth('login');}return;}
   if(!session){if(event==='INITIAL_SESSION')showAuth('login',linkErr?'O link expirou ou já foi usado. Use “Esqueci minha senha” para receber outro.':null);return;}
+  if(!pendingSetPw&&event==='SIGNED_IN'&&needsPassword(session))pendingSetPw=true;
   if(pendingSetPw){showAuth('setpw');return;}
   if(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='USER_UPDATED')startApp(session.user);
 }
@@ -1370,12 +1381,21 @@ FORMS.forgot=async function(form){
   if(r.error)return showErr(form,authError(r.error));
   showAuth('login','Pronto! Se o e-mail estiver liberado, o link chega em instantes. Olhe também o spam.','ok');
 };
+FORMS.first=async function(form){
+  const email=((new FormData(form)).get('email')||'').trim();
+  if(!email)return showErr(form,'Digite o seu e-mail.');
+  const btn=$('button[type=submit]',form);btn.disabled=true;
+  const r=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:location.origin+location.pathname}});
+  btn.disabled=false;
+  if(r.error)return showErr(form,authError(r.error));
+  showAuth('login','Pronto! O link para criar a sua senha chega em instantes. Olhe também o spam.','ok');
+};
 FORMS.setpw=async function(form){
   const fd=new FormData(form),p1=fd.get('password')||'',p2=fd.get('password2')||'';
   if(p1.length<8)return showErr(form,'A senha precisa ter pelo menos 8 caracteres.');
   if(p1!==p2)return showErr(form,'As duas senhas não são iguais.');
   const btn=$('button[type=submit]',form);btn.disabled=true;
-  const r=await sb.auth.updateUser({password:p1});
+  const r=await sb.auth.updateUser({password:p1,data:{has_pw:true}});
   btn.disabled=false;
   if(r.error)return showErr(form,authError(r.error));
   pendingSetPw=false;
